@@ -610,6 +610,68 @@ TAGLIB_C_EXPORT void taglib_complex_property_free_keys(char **keys);
 TAGLIB_C_EXPORT void taglib_complex_property_free(
   TagLib_Complex_Property_Attribute ***props);
 
+/*!
+ * Returns all pictures of \a file as a NULL terminated array, or NULL if the
+ * file has none.
+ *
+ * Unlike taglib_picture_from_complex_property(), which only reports the first
+ * picture and borrows its memory from the properties it was passed, this
+ * returns every picture and owns its data; free it with taglib_pictures_free().
+ */
+TAGLIB_C_EXPORT TagLib_Complex_Property_Picture_Data **taglib_file_pictures(
+  const TagLib_File *file);
+
+/*!
+ * Frees the NULL terminated array \a pictures (as returned by
+ * taglib_file_pictures()) and the C-strings and byte vectors it contains.
+ */
+TAGLIB_C_EXPORT void taglib_pictures_free(
+  TagLib_Complex_Property_Picture_Data **pictures);
+
+
+/*******************************************************************************
+ * Chapters API
+ ******************************************************************************/
+
+/*!
+ * A single chapter, as returned by taglib_file_chapters().
+ * \a startTime and \a endTime are in milliseconds, \a endTime is -1 if the
+ * format does not provide one.
+ */
+typedef struct {
+  char *title;
+  long long startTime;
+  long long endTime;
+} TagLib_Chapter;
+
+/*!
+ * Returns the chapters of \a file as a NULL terminated array, or NULL if the
+ * file has no chapters or its format does not support them.
+ *
+ * For MP4 files, Nero style chapters are preferred, falling back to QuickTime
+ * chapters; these carry no end time, so \a endTime is -1.  For MPEG files the
+ * ID3v2 CHAP frames are used, with the title taken from the embedded TIT2
+ * frame.  Chapters stored as Vorbis comments (Ogg, FLAC) are reachable through
+ * taglib_property_get() and are not reported here.
+ *
+ * \code {.c}
+ * TagLib_File *file = taglib_file_new("myfile.m4b");
+ * TagLib_Chapter **chapters = taglib_file_chapters(file);
+ * if(chapters) {
+ *   for(TagLib_Chapter **c = chapters; *c; ++c)
+ *     printf("%lld %s\n", (*c)->startTime, (*c)->title);
+ *   taglib_chapters_free(chapters);
+ * }
+ * \endcode
+ */
+TAGLIB_C_EXPORT TagLib_Chapter **taglib_file_chapters(TagLib_File *file);
+
+/*!
+ * Frees the NULL terminated array \a chapters (as returned by
+ * taglib_file_chapters()) and the C-strings it contains.
+ */
+TAGLIB_C_EXPORT void taglib_chapters_free(TagLib_Chapter **chapters);
+
 #ifdef __cplusplus
 }
 #endif

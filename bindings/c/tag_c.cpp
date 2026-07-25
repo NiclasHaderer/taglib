@@ -40,6 +40,8 @@
 #include "mpegfile.h"
 #include "tag.h"
 #include "id3v2framefactory.h"
+#include "id3v2tag.h"
+#include "chapterframe.h"
 #ifdef TAGLIB_WITH_ASF
 #include "asffile.h"
 #endif
@@ -882,4 +884,171 @@ void taglib_complex_property_free(
     free(*propPtr++);
   }
   free(props);
+}
+
+
+TagLib_Complex_Property_Picture_Data **taglib_file_pictures(const TagLib_File *file)
+{
+  if(file == NULL)
+    return NULL;
+
+  auto f = reinterpret_cast<const FileRef *>(file);
+  if(f->isNull())
+    return NULL;
+
+  const List<VariantMap> pictures = f->complexProperties("PICTURE");
+  if(pictures.isEmpty())
+    return NULL;
+
+  auto result = static_cast<TagLib_Complex_Property_Picture_Data **>(
+    malloc(sizeof(TagLib_Complex_Property_Picture_Data *) * (pictures.size() + 1)));
+  TagLib_Complex_Property_Picture_Data **pp = result;
+
+  for(const auto &picture : pictures) {
+    auto p = static_cast<TagLib_Complex_Property_Picture_Data *>(
+      malloc(sizeof(TagLib_Complex_Property_Picture_Data)));
+    p->mimeType = stringToCharArray(picture.value("mimeType").toString());
+    p->description = stringToCharArray(picture.value("description").toString());
+    p->pictureType = stringToCharArray(picture.value("pictureType").toString());
+
+    const ByteVector data = picture.value("data").toByteVector();
+    p->size = data.size();
+    p->data = static_cast<char *>(malloc(data.size()));
+    if(data.size() > 0)
+      memcpy(p->data, data.data(), data.size());
+
+    *pp++ = p;
+  }
+  *pp = NULL;
+
+  return result;
+}
+
+void taglib_pictures_free(TagLib_Complex_Property_Picture_Data **pictures)
+{
+  if(pictures == NULL)
+    return;
+
+  TagLib_Complex_Property_Picture_Data **p = pictures;
+  while(*p) {
+    free((*p)->mimeType);
+    free((*p)->description);
+    free((*p)->pictureType);
+    free((*p)->data);
+    free(*p++);
+  }
+  free(pictures);
+}
+
+
+/******************************************************************************
+ * Chapters API
+ ******************************************************************************/
+
+namespace
+{
+  struct ChapterData
+  {
+    String title;
+    long long startTime;
+    long long endTime;
+  };
+
+  List<ChapterData> chaptersFromID3v2(const ID3v2::Tag *tag)
+  {
+    List<ChapterData> result;
+    if(!tag)
+      return result;
+
+    for(const auto &frame : tag->frameList("CHAP")) {
+      auto chapterFrame = dynamic_cast<const ID3v2::ChapterFrame *>(frame);
+      if(!chapterFrame)
+        continue;
+
+      /* Taggers which leave a time unset tend to fill it with the all-bits-set
+       * value the chapter spec defines for offsets.  An unset end time is
+       * reported as -1, but a chapter with no start time has no position to
+       * report at all, so it is skipped rather than placed 49 days in. */
+      const unsigned int startTime = chapterFrame->startTime();
+      if(startTime == 0xffffffffU)
+        continue;
+
+      String title;
+      const ID3v2::FrameList &embedded = chapterFrame->embeddedFrameList("TIT2");
+      if(!embedded.isEmpty())
+        title = embedded.front()->toString();
+
+      const unsigned int endTime = chapterFrame->endTime();
+      result.append({title,
+                     static_cast<long long>(startTime),
+                     endTime == 0xffffffffU ? -1 : static_cast<long long>(endTime)});
+    }
+
+    return result;
+  }
+
+#ifdef TAGLIB_WITH_MP4
+  List<ChapterData> chaptersFromMP4(MP4::File *file)
+  {
+    List<ChapterData> result;
+
+    MP4::ChapterList chapters = file->neroChapters();
+    if(chapters.isEmpty())
+      chapters = file->qtChapters();
+
+    for(const auto &chapter : chapters)
+      result.append({chapter.title(), chapter.startTime(), -1});
+
+    return result;
+  }
+#endif
+}  // namespace
+
+TagLib_Chapter **taglib_file_chapters(TagLib_File *file)
+{
+  if(file == NULL)
+    return NULL;
+
+  auto f = reinterpret_cast<FileRef *>(file);
+  if(f->isNull())
+    return NULL;
+
+  List<ChapterData> chapters;
+  if(auto mpegFile = dynamic_cast<MPEG::File *>(f->file()))
+    chapters = chaptersFromID3v2(mpegFile->ID3v2Tag());
+#ifdef TAGLIB_WITH_MP4
+  else if(auto mp4File = dynamic_cast<MP4::File *>(f->file()))
+    chapters = chaptersFromMP4(mp4File);
+#endif
+
+  if(chapters.isEmpty())
+    return NULL;
+
+  auto result = static_cast<TagLib_Chapter **>(
+    malloc(sizeof(TagLib_Chapter *) * (chapters.size() + 1)));
+  TagLib_Chapter **cp = result;
+
+  for(const auto &chapter : chapters) {
+    auto c = static_cast<TagLib_Chapter *>(malloc(sizeof(TagLib_Chapter)));
+    c->title = stringToCharArray(chapter.title);
+    c->startTime = chapter.startTime;
+    c->endTime = chapter.endTime;
+    *cp++ = c;
+  }
+  *cp = NULL;
+
+  return result;
+}
+
+void taglib_chapters_free(TagLib_Chapter **chapters)
+{
+  if(chapters == NULL)
+    return;
+
+  TagLib_Chapter **c = chapters;
+  while(*c) {
+    free((*c)->title);
+    free(*c++);
+  }
+  free(chapters);
 }
