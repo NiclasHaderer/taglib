@@ -286,6 +286,14 @@ String ItemFactory::propertyKeyForName(const ByteVector &name) const
   if(key.isEmpty() && name.startsWith(freeFormPrefix)) {
     key = name.mid(std::size(freeFormPrefix) - 1);
   }
+  if(key.isEmpty() && name.startsWith("----:")) {
+    // Like FFmpeg, use the name of a freeform atom as the property key
+    // regardless of its mean (com.apple.iTunes, com.pilabor.tone, ...).
+    const int meanEnd = name.find(':', 5);
+    if(meanEnd >= 0) {
+      key = name.mid(meanEnd + 1);
+    }
+  }
   return key;
 }
 
