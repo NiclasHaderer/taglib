@@ -426,6 +426,12 @@ int taglib_audioproperties_length(const TagLib_AudioProperties *audioProperties)
   return p->lengthInSeconds();
 }
 
+int taglib_audioproperties_length_ms(const TagLib_AudioProperties *audioProperties)
+{
+  auto p = reinterpret_cast<const AudioProperties *>(audioProperties);
+  return p->lengthInMilliseconds();
+}
+
 int taglib_audioproperties_bitrate(const TagLib_AudioProperties *audioProperties)
 {
   auto p = reinterpret_cast<const AudioProperties *>(audioProperties);

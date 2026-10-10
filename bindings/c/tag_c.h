@@ -310,6 +310,11 @@ TAGLIB_C_EXPORT void taglib_tag_free_strings(void);
 TAGLIB_C_EXPORT int taglib_audioproperties_length(const TagLib_AudioProperties *audioProperties);
 
 /*!
+ * Returns the length of the file in milliseconds.
+ */
+TAGLIB_C_EXPORT int taglib_audioproperties_length_ms(const TagLib_AudioProperties *audioProperties);
+
+/*!
  * Returns the bitrate of the file in kb/s.
  */
 TAGLIB_C_EXPORT int taglib_audioproperties_bitrate(const TagLib_AudioProperties *audioProperties);
